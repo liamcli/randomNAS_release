@@ -9,3 +9,16 @@ Random seeds and additional documentation needed to reproduce the results are pr
 
 You will need the following packages to run the code:  
 `Python >= 3.5.5, PyTorch == 0.3.1, torchvision == 0.2.0`
+
+Download the CIFAR-10 dataset and PTB dataset according to how DARTS expects the files to be.
+
+# Random Search with Weight Sharing
+Be sure to set the right paths for the `darts` repository and data files in the benchmark files:  
+`benchmarks/cnn/darts/darts_wrapper_discrete.py`  
+`benchmarks/ptb/darts/darts_wrapper_discrete.py`
+
+To run `random_weight_share.py`, issue the command with the desired arguments to replicate runs from the spreadsheet:  
+`python random_weight_share.py --benchmark [ptb/cnn] --seed [X] --epochs [X] --batch_size [X] --grad_clip [X] --save_dir [X] --config [controls ptb hidden dim] --init_channels [controls cnn size]`
+
+# ASHA
+Please follow the directions in the `darts_asha` repo to run these experiments.

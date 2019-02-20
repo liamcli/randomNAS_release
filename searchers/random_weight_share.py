@@ -115,8 +115,8 @@ class Random_NAS:
         return best_rounds
 
 def main(args):
-    #root_dir = '/home/liamli4465/results'
-    root_dir = '/media/lisha/fastfiles/results/desktop'
+    # Fill in with root output path
+    root_dir = '/home/liamli4465/results'
     if args.save_dir is None:
         save_dir = os.path.join(root_dir, '%s/random/trial%d' % (args.benchmark, args.seed))
     else:
