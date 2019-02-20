@@ -20,7 +20,7 @@ Be sure to set the right paths for the `darts` repository and data files in the 
 To run `random_weight_share.py`, issue the command with the desired arguments to replicate runs from the spreadsheet:  
 `python random_weight_share.py --benchmark [ptb/cnn] --seed [X] --epochs [X] --batch_size [X] --grad_clip [X] --save_dir [X] --config [controls ptb hidden dim] --init_channels [controls cnn size]`
 
-The output architecture for PTB can be copied directly into `darts/rnn/genotypes.py` for eval.  For CNN, run the following command to get the architecture to copy into `darts/cnn/genotypes.py` for eval:  
+Please use our fork of DARTS in order to get deterministic results for CNN evaluation.  The output architecture for PTB can be copied directly into `darts/rnn/genotypes.py` for eval.  For CNN, run the following command to get the architecture to copy into `darts/cnn/genotypes.py` for eval:  
 `python parse_cnn_arch.py "[arch_str]"`
 
 ## ASHA
