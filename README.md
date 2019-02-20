@@ -1,4 +1,6 @@
-# nas_weight_share
+# randomNAS_release
+Code release for paper "Random Search and Reproducibility for NAS."
+
 This code base requires the following additional repositories:
 <https://github.com/liamcli/darts>
 <https://github.com/liamcli/darts_asha>
