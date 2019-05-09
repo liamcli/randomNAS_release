@@ -9,6 +9,7 @@ Random seeds and additional documentation needed to reproduce the results are pr
 
 You will need the following packages to run the code:  
 `Python >= 3.5.5, PyTorch == 0.3.1, torchvision == 0.2.0`
+Additionally, we used CUDA 9.0 and CuDNN 7.1.3.  
 
 Download the CIFAR-10 dataset and PTB dataset according to how DARTS expects the files to be.
 
@@ -22,6 +23,8 @@ To run `random_weight_share.py`, issue the command with the desired arguments to
 
 Please use our fork of DARTS in order to get deterministic results for CNN evaluation.  The output architecture for PTB can be copied directly into `darts/rnn/genotypes.py` for eval.  For CNN, run the following command to get the architecture to copy into `darts/cnn/genotypes.py` for eval:  
 `python parse_cnn_arch.py "[arch_str]"`
+
+Note that the exact reproducibility of random search with weight sharing is **hardware dependent**; our CNN results are reproducible on Tesla V100 GPUs and our RNN results are reproducible on Testla P100 GPUs.  
 
 ## ASHA
 Please follow the directions in the `darts_asha` repo to run these experiments.
