@@ -25,7 +25,7 @@ class AttrDict(dict):
         self.__dict__ = self
 
 class DartsWrapper:
-    def __init__(self, save_path, data_dir, seed, batch_size, grad_clip, epochs, init_channels=16, layers=8, learning_rate=0.025, drop_prob=0):
+    def __init__(self, save_path, data_dir, seed, batch_size, grad_clip, epochs, init_channels=16, layers=8, learning_rate=0.025):
         args = {}
         args['data'] = data_dir
         args['epochs'] = epochs
@@ -36,7 +36,6 @@ class DartsWrapper:
         args['weight_decay'] = 3e-4
         args['init_channels'] = init_channels
         args['layers'] = layers
-        args['drop_path_prob'] = drop_prob
         args['grad_clip'] = grad_clip
         args['train_portion'] = 0.5
         args['seed'] = seed
@@ -101,7 +100,7 @@ class DartsWrapper:
             self.top5 = utils.AvgrageMeter()
         except Exception as e:
             print(e)
-            model = Network(args.init_channels, 10, args.layers, self.criterion, drop_prob=args.drop_path_prob)
+            model = Network(args.init_channels, 10, args.layers, self.criterion)
 
             model = model.cuda()
             self.model = model
@@ -258,7 +257,7 @@ class DartsWrapper:
         args = self.args
         path = os.path.join(args.save, 'model.ckpt')
         checkpoint = torch.load(path)
-        #model = Network(args.init_channels, 10, args.layers, self.criterion, drop_prob=args.drop_path_prob)
+        #model = Network(args.init_channels, 10, args.layers, self.criterion)
         #model.load_state_dict(checkpoint['model'])
         model = checkpoint['model']
         self.model = model

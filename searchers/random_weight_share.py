@@ -162,7 +162,7 @@ def main(args):
         model = DartsWrapper(save_dir, args.data_dir, args.seed, args.batch_size, args.grad_clip, config=args.config)
     elif args.benchmark=='cnn':
         from benchmarks.cnn.darts.darts_wrapper_discrete import DartsWrapper
-        model = DartsWrapper(save_dir, args.data_dir, args.seed, args.batch_size, args.grad_clip, args.epochs, learning_rate=args.learning_rate, init_channels=args.init_channels, layers=args.layers, drop_prob=args.drop_prob)
+        model = DartsWrapper(save_dir, args.data_dir, args.seed, args.batch_size, args.grad_clip, args.epochs, learning_rate=args.learning_rate, init_channels=args.init_channels, layers=args.layers)
 
     searcher = Random_NAS(B, model, args.seed, save_dir)
     logging.info('budget: %d' % (searcher.B))
@@ -197,7 +197,6 @@ if __name__ == "__main__":
     # with weight-sharing used in our experiments.
     parser.add_argument('--init_channels', dest='init_channels', type=int, default=16)
     parser.add_argument('--layers', dest='layers', type=int, default=8)
-    parser.add_argument('--drop_prob', dest='drop_prob', type=float, default=0.)
     args = parser.parse_args()
 
     main(args)
