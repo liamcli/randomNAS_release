@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/home/liamli4465/darts/cnn')
+sys.path.append('/home/lisha/school/Projects/darts_fork/cnn')
 import genotypes
 from model_search import Network
 import utils
@@ -25,18 +25,18 @@ class AttrDict(dict):
         self.__dict__ = self
 
 class DartsWrapper:
-    def __init__(self, save_path, seed, batch_size, grad_clip, epochs, resume_iter=None, init_channels=16):
+    def __init__(self, save_path, data_dir, seed, batch_size, grad_clip, epochs, init_channels=16, layers=8, learning_rate=0.025, drop_prob=0):
         args = {}
-        args['data'] = '/home/liamli4465/darts/data/'
+        args['data'] = data_dir
         args['epochs'] = epochs
-        args['learning_rate'] = 0.025
+        args['learning_rate'] = learning_rate
         args['batch_size'] = batch_size
         args['learning_rate_min'] = 0.001
         args['momentum'] = 0.9
         args['weight_decay'] = 3e-4
         args['init_channels'] = init_channels
-        args['layers'] = 8
-        args['drop_path_prob'] = 0.3
+        args['layers'] = layers
+        args['drop_path_prob'] = drop_prob
         args['grad_clip'] = grad_clip
         args['train_portion'] = 0.5
         args['seed'] = seed
@@ -55,10 +55,11 @@ class DartsWrapper:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
         torch.cuda.set_device(args.gpu)
-        cudnn.benchmark = False
         cudnn.enabled=True
+        cudnn.benchmark = False
         cudnn.deterministic=True
         torch.cuda.manual_seed_all(args.seed)
+        os.environ['PYTHONHASHSEED'] = str(args.seed)
 
 
         train_transform, valid_transform = utils._data_transforms_cifar10(args)
@@ -71,12 +72,12 @@ class DartsWrapper:
         self.train_queue = torch.utils.data.DataLoader(
           train_data, batch_size=args.batch_size,
           sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
-          pin_memory=True, num_workers=0, worker_init_fn=np.random.seed(args.seed))
+          pin_memory=True, num_workers=0)
 
         self.valid_queue = torch.utils.data.DataLoader(
           train_data, batch_size=args.batch_size,
           sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
-          pin_memory=True, num_workers=0, worker_init_fn=np.random.seed(args.seed))
+          pin_memory=True, num_workers=0)
 
         self.train_iter = iter(self.train_queue)
         self.valid_iter = iter(self.valid_queue)
@@ -89,56 +90,49 @@ class DartsWrapper:
         criterion = criterion.cuda()
         self.criterion = criterion
 
-        model = Network(args.init_channels, 10, args.layers, self.criterion)
-
-        model = model.cuda()
-        self.model = model
 
         try:
             self.load()
-            logging.info('loaded previously saved weights')
-        except Exception as e:
-            print(e)
-
-        logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
-
-        optimizer = torch.optim.SGD(
-          self.model.parameters(),
-          args.learning_rate,
-          momentum=args.momentum,
-          weight_decay=args.weight_decay)
-        self.optimizer = optimizer
-
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-          optimizer, float(args.epochs), eta_min=args.learning_rate_min)
-
-        if resume_iter is not None:
-            self.steps = resume_iter
-            self.epochs = int(resume_iter / len(self.train_queue))
+            lr = self.scheduler.get_lr()[0]
+            print(lr)
             logging.info("Resuming from epoch %d" % self.epochs)
             self.objs = utils.AvgrageMeter()
             self.top1 = utils.AvgrageMeter()
             self.top5 = utils.AvgrageMeter()
-            for i in range(self.epochs):
-                self.scheduler.step()
+        except Exception as e:
+            print(e)
+            model = Network(args.init_channels, 10, args.layers, self.criterion, drop_prob=args.drop_path_prob)
+
+            model = model.cuda()
+            self.model = model
+
+            optimizer = torch.optim.SGD(
+              self.model.parameters(),
+              args.learning_rate,
+              momentum=args.momentum,
+              weight_decay=args.weight_decay)
+            self.optimizer = optimizer
+
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+              optimizer, float(args.epochs), eta_min=args.learning_rate_min)
+
+        self.model.zero_grad()
+
+        logging.info("param size = %fMB", utils.count_parameters_in_MB(self.model))
 
         size = 0
-        for p in model.parameters():
+        for p in self.model.parameters():
             size += p.nelement()
         logging.info('param size: {}'.format(size))
 
-        total_params = sum(x.data.nelement() for x in model.parameters())
+        total_params = sum(x.data.nelement() for x in self.model.parameters())
         logging.info('Args: {}'.format(args))
         logging.info('Model total parameters: {}'.format(total_params))
 
     def train_batch(self, arch):
       args = self.args
-      if self.steps % len(self.train_queue) == 0:
-        self.scheduler.step()
-        self.objs = utils.AvgrageMeter()
-        self.top1 = utils.AvgrageMeter()
-        self.top5 = utils.AvgrageMeter()
       lr = self.scheduler.get_lr()[0]
+      self.model.train()
 
       weights = self.get_weights_from_arch(arch)
       self.set_model_weights(weights)
@@ -146,20 +140,46 @@ class DartsWrapper:
       step = self.steps % len(self.train_queue)
       input, target = next(self.train_iter)
 
-      self.model.train()
       n = input.size(0)
 
       input = Variable(input, requires_grad=False).cuda()
-      target = Variable(target, requires_grad=False).cuda(async=True)
+      target = Variable(target, requires_grad=False).cuda()
+
+      if self.steps % len(self.train_queue) == 0:
+        self.scheduler.step()
+        lr = self.scheduler.get_lr()[0]
+        self.objs = utils.AvgrageMeter()
+        self.top1 = utils.AvgrageMeter()
+        self.top5 = utils.AvgrageMeter()
+
+      #for g in self.optimizer.param_groups:
+      #    print(g['weight_decay'], g['momentum'], g['dampening'], g['nesterov'], g['lr'])
+      for p in self.model.parameters():
+          p.grad = None
 
       # get a random minibatch from the search queue with replacement
       self.optimizer.zero_grad()
       logits = self.model(input, discrete=True)
       loss = self.criterion(logits, target)
+      #print(loss, sum([torch.sum(p.data) for p in self.model.parameters() if p.data is not None]))
+      #print(sum([torch.sum(self.optimizer.state[p]['momentum_buffer']) for p in self.optimizer.state if 'momentum_buffer' in self.optimizer.state[p]]))
+
 
       loss.backward()
+      #print(len([torch.sum(p.grad.data) for p in self.model.parameters() if p.grad is not None]))
+      #print(sum([torch.sum(p.grad.data) for p in self.model.parameters() if p.grad is not None]))
       nn.utils.clip_grad_norm(self.model.parameters(), args.grad_clip)
+      #print(sum([torch.sum(p.grad.data) for p in self.model.parameters() if p.grad is not None]))
+
       self.optimizer.step()
+      #print(sum([torch.sum(self.optimizer.state[p]['momentum_buffer']) for p in self.optimizer.state if 'momentum_buffer' in self.optimizer.state[p]]))
+      #print(sum([torch.sum(p.data) for p in self.model.parameters() if p.data is not None]))
+      #print(arch)
+      #print(target[:10])
+      #print(logits[0])
+      #print([p['lr'] for p in self.optimizer.param_groups])
+      #print(loss)
+
 
       prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
       self.objs.update(loss.data[0], n)
@@ -172,9 +192,10 @@ class DartsWrapper:
       self.steps += 1
       if self.steps % len(self.train_queue) == 0:
         self.epochs += 1
-        self.train_iter = iter(self.train_queue)
         valid_err = self.evaluate(arch)
         logging.info('epoch %d  |  train_acc %f  |  valid_acc %f' % (self.epochs, self.top1.avg, 1-valid_err))
+        self.train_iter = iter(self.train_queue)
+        self.model.train()
         self.save()
 
     def evaluate(self, arch, split=None):
@@ -184,10 +205,10 @@ class DartsWrapper:
       top1 = utils.AvgrageMeter()
       top5 = utils.AvgrageMeter()
 
+      self.model.eval()
+
       weights = self.get_weights_from_arch(arch)
       self.set_model_weights(weights)
-
-      self.model.eval()
 
       if split is None:
         n_batches = 10
@@ -202,7 +223,7 @@ class DartsWrapper:
           self.valid_iter = iter(self.valid_queue)
           input, target = next(self.valid_iter)
         input = Variable(input, volatile=True).cuda()
-        target = Variable(target, volatile=True).cuda(async=True)
+        target = Variable(target, volatile=True).cuda()
 
         logits = self.model(input, discrete=True)
         loss = self.criterion(logits, target)
@@ -219,10 +240,47 @@ class DartsWrapper:
       return 1-top1.avg
 
     def save(self):
-        utils.save(self.model, os.path.join(self.args.save, 'weights.pt'))
+        checkpoint = {
+                'random_state': random.getstate(),
+                'np_random_state': np.random.get_state(),
+                'torch_random_state': torch.get_rng_state(),
+                'torch_cuda_random_state': torch.cuda.get_rng_state_all(),
+                'steps': self.steps,
+                'epochs': self.epochs,
+                'optimizer': self.optimizer.state_dict(),
+                'model': self.model,
+                'criterion': self.criterion
+                }
+        path = os.path.join(self.args.save, 'model.ckpt')
+        torch.save(checkpoint, path)
 
     def load(self):
-        utils.load(self.model, os.path.join(self.args.save, 'weights.pt'))
+        args = self.args
+        path = os.path.join(args.save, 'model.ckpt')
+        checkpoint = torch.load(path)
+        #model = Network(args.init_channels, 10, args.layers, self.criterion, drop_prob=args.drop_path_prob)
+        #model.load_state_dict(checkpoint['model'])
+        model = checkpoint['model']
+        self.model = model
+
+        optimizer = torch.optim.SGD(
+          self.model.parameters(),
+          args.learning_rate,
+          momentum=args.momentum,
+          weight_decay=args.weight_decay)
+        self.optimizer = optimizer
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+
+        random.setstate(checkpoint['random_state'])
+        np.random.set_state(checkpoint['np_random_state'])
+        torch.set_rng_state(checkpoint['torch_random_state'])
+        torch.cuda.set_rng_state_all(checkpoint['torch_cuda_random_state'])
+        self.steps = checkpoint['steps']
+        self.epochs = checkpoint['epochs']
+        print('Resumed model trained for %d steps' % self.steps)
+
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+          optimizer, float(args.epochs), eta_min=args.learning_rate_min, last_epoch=self.epochs-1)
 
     def get_weights_from_arch(self, arch):
         k = sum(1 for i in range(self.model._steps) for n in range(2+i))

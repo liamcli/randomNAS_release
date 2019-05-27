@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/home/liamli4465/nas_weight_share')
+sys.path.append('/home/lisha/school/Projects/darts_fork')
 import os
 import shutil
 import logging
@@ -43,6 +43,18 @@ class Random_NAS:
 
         self.arms = {}
         self.node_id = 0
+        self.save_file = os.path.join(self.save_dir, 'results.pkl')
+        if os.path.isfile(self.save_file):
+            save_dict = pickle.load(open(self.save_file, 'rb'))
+            for a in save_dict['arms']:
+                arm = save_dict['arms'][a]
+                n = Node(arm['parent'], arm['arch'], arm['node_id'], arm['rung'])
+                if 'objective_val' in arm:
+                    n.objective_val = arm['objective_val']
+                self.arms[a] = n
+            self.iters = save_dict['iters']
+            self.node_id = len(self.arms.keys())
+            print(self.node_id)
 
     def print_summary(self):
         logging.info(self.parents)
@@ -60,23 +72,25 @@ class Random_NAS:
         self.node_id += 1
         return arch
 
-    def save(self):
-        to_save = {a: self.arms[a].to_dict() for a in self.arms}
+    def save(self, save_model=False):
+        to_save = {'arms': {a: self.arms[a].to_dict() for a in self.arms}, 'iters': self.iters}
         # Only replace file if save successful so don't lose results of last pickle save
         with open(os.path.join(self.save_dir,'results_tmp.pkl'),'wb') as f:
+            print('saved with max node_id %d' % self.node_id)
             pickle.dump(to_save, f)
-        shutil.copyfile(os.path.join(self.save_dir, 'results_tmp.pkl'), os.path.join(self.save_dir, 'results.pkl'))
+        shutil.copyfile(os.path.join(self.save_dir, 'results_tmp.pkl'), self.save_file)
 
-        self.model.save()
+        if save_model:
+            self.model.save()
 
-    def run(self):
+    def run(self, save_freq):
         while self.iters < self.B:
             arch = self.get_arch()
             self.model.train_batch(arch)
             self.iters += 1
-            if self.iters % 500 == 0:
+            if self.iters % save_freq == 0:
                 self.save()
-        self.save()
+        self.save(save_model=True)
 
     def get_eval_arch(self, rounds=None):
         #n_rounds = int(self.B / 7 / 1000)
@@ -116,7 +130,8 @@ class Random_NAS:
 
 def main(args):
     # Fill in with root output path
-    root_dir = '/home/liamli4465/results'
+    #root_dir = '/home/liamli4465/results'
+    root_dir = '/media/lisha/fastfiles/results/desktop'
     if args.save_dir is None:
         save_dir = os.path.join(root_dir, '%s/random/trial%d' % (args.benchmark, args.seed))
     else:
@@ -144,15 +159,15 @@ def main(args):
     B = int(args.epochs * data_size / args.batch_size / time_steps)
     if args.benchmark=='ptb':
         from benchmarks.ptb.darts.darts_wrapper_discrete import DartsWrapper
-        model = DartsWrapper(save_dir, args.seed, args.batch_size, args.grad_clip, config=args.config)
+        model = DartsWrapper(save_dir, args.data_dir, args.seed, args.batch_size, args.grad_clip, config=args.config)
     elif args.benchmark=='cnn':
         from benchmarks.cnn.darts.darts_wrapper_discrete import DartsWrapper
-        model = DartsWrapper(save_dir, args.seed, args.batch_size, args.grad_clip, args.epochs, init_channels=args.init_channels)
+        model = DartsWrapper(save_dir, args.data_dir, args.seed, args.batch_size, args.grad_clip, args.epochs, learning_rate=args.learning_rate, init_channels=args.init_channels, layers=args.layers, drop_prob=args.drop_prob)
 
     searcher = Random_NAS(B, model, args.seed, save_dir)
     logging.info('budget: %d' % (searcher.B))
     if not args.eval_only:
-        searcher.run()
+        searcher.run(data_size)
         archs = searcher.get_eval_arch()
     else:
         np.random.seed(args.seed+1)
@@ -171,7 +186,9 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', dest='epochs', type=int, default=100)
     parser.add_argument('--batch_size', dest='batch_size', type=int, default=64)
     parser.add_argument('--grad_clip', dest='grad_clip', type=float, default=0.25)
+    parser.add_argument('--learning_rate', dest='learning_rate', type=float, default=0.025)
     parser.add_argument('--save_dir', dest='save_dir', type=str, default=None)
+    parser.add_argument('--data_dir', dest='data_dir', type=str, default=None)
     parser.add_argument('--eval_only', dest='eval_only', type=int, default=0)
     # PTB only argument. config=search uses proxy network for shared weights while
     # config=eval uses proxyless network for shared weights.
@@ -179,6 +196,8 @@ if __name__ == "__main__":
     # CIFAR-10 only argument.  Use either 16 or 24 for the settings for random search
     # with weight-sharing used in our experiments.
     parser.add_argument('--init_channels', dest='init_channels', type=int, default=16)
+    parser.add_argument('--layers', dest='layers', type=int, default=8)
+    parser.add_argument('--drop_prob', dest='drop_prob', type=float, default=0.)
     args = parser.parse_args()
 
     main(args)

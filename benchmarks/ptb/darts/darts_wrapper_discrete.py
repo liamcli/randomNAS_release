@@ -23,14 +23,14 @@ class AttrDict(dict):
         self.__dict__ = self
 
 class DartsWrapper:
-    def __init__(self, save_path, seed, batch_size, grad_clip, config='eval'):
+    def __init__(self, save_path, data_dir, seed, batch_size, grad_clip, config='eval'):
         if config == 'search':
             args = {'emsize':300, 'nhid':300, 'nhidlast':300, 'dropoute':0, 'wdecay':5e-7}
         elif config == 'eval':
             args = {'emsize':850, 'nhid':850, 'nhidlast':850, 'dropoute':0.1, 'wdecay':8e-7}
         args['config'] = config
 
-        args['data'] = '/home/liamli4465/darts/data/penn'
+        args['data'] = os.path.join(data_dir, 'penn')
         args['lr'] = 20
         args['clip'] = grad_clip
         args['batch_size'] = batch_size
