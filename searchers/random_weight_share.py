@@ -6,6 +6,8 @@ import inspect
 import pickle
 import argparse
 import numpy as np
+from scripts.aws_utils import *
+from scripts.parse_cnn_arch import parse_arch_to_darts
 
 class Rung:
     def __init__(self, rung, nodes):
@@ -31,7 +33,7 @@ class Node:
         return out
 
 class Random_NAS:
-    def __init__(self, B, model, seed, save_dir):
+    def __init__(self, B, model, seed, save_dir, save_to_remote=False):
         self.save_dir = save_dir
 
         self.B = B
@@ -42,9 +44,22 @@ class Random_NAS:
 
         self.arms = {}
         self.node_id = 0
+        self.save_to_remote = save_to_remote
         self.save_file = os.path.join(self.save_dir, 'results.pkl')
+        if save_to_remote:
+            self.s3_bucket = self.model.s3_bucket
+            self.s3_save_file = os.path.join(self.model.s3_folder, 'results.pkl')
+            download_from_s3(self.s3_save_file, self.s3_bucket, self.save_file)
+
+        try:
+            self.resume()
+        except Exception as e:
+            print(e)
+
+    def resume(self):
         if os.path.isfile(self.save_file):
             save_dict = pickle.load(open(self.save_file, 'rb'))
+            self.arms = {}
             for a in save_dict['arms']:
                 arm = save_dict['arms'][a]
                 n = Node(arm['parent'], arm['arch'], arm['node_id'], arm['rung'])
@@ -53,7 +68,7 @@ class Random_NAS:
                 self.arms[a] = n
             self.iters = save_dict['iters']
             self.node_id = len(self.arms.keys())
-            print(self.node_id)
+
 
     def print_summary(self):
         logging.info(self.parents)
@@ -82,12 +97,19 @@ class Random_NAS:
         if save_model:
             self.model.save()
 
-    def run(self, save_freq):
+        if self.save_to_remote:
+            upload_to_s3(self.save_file, self.s3_bucket, self.s3_save_file)
+
+    def run(self):
         while self.iters < self.B:
+            starting_epoch = self.model.epochs
             arch = self.get_arch()
             self.model.train_batch(arch)
             self.iters += 1
-            if self.iters % save_freq == 0:
+            ending_epoch = self.model.epochs
+            if ending_epoch > starting_epoch:
+                # Only save random search arms here.
+                # Model saving is called with model every epoch.
                 self.save()
         self.save(save_model=True)
 
@@ -148,14 +170,14 @@ def main(args):
 
     logging.info(args)
 
-    if args.benchmark=='ptb':
+    if args.benchmark=='rnn':
         data_size = 929589
         time_steps = 35
     else:
         data_size = 25000
         time_steps = 1
     B = int(args.epochs * data_size / args.batch_size / time_steps)
-    if args.benchmark=='ptb':
+    if args.benchmark=='rnn':
         from benchmarks.ptb.darts.darts_wrapper_discrete import DartsWrapper
         model = DartsWrapper(save_dir, args.data_dir, args.seed, args.batch_size, args.grad_clip, config=args.config)
     elif args.benchmark=='cnn':
@@ -165,11 +187,21 @@ def main(args):
     searcher = Random_NAS(B, model, args.seed, save_dir)
     logging.info('budget: %d' % (searcher.B))
     if not args.eval_only:
-        searcher.run(data_size)
+        searcher.run()
         archs = searcher.get_eval_arch()
     else:
         np.random.seed(args.seed+1)
-        archs = searcher.get_eval_arch(2)
+        archs = searcher.get_eval_arch(1)
+    archs = sorted(archs, key=lambda x: x[-1])
+    best_arch = archs[0][0]
+
+    if args.benchmark=='cnn':
+        best_arch = parse_arch_to_darts(best_arch)
+
+    #with open(os.path.join(args.dart_dir, args.benchmark, 'genotypes.py'), 'a') as f:
+    #    f.write('\n')
+    #    f.write('RANDOM{} = {}'.format(args.seed, best_arch))
+
     logging.info(archs)
     arch = ' '.join([str(a) for a in archs[0][0]])
     with open('/tmp/arch','w') as f:
@@ -179,7 +211,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Args for SHA with weight sharing')
-    parser.add_argument('--benchmark', dest='benchmark', type=str, default='ptb')
+    parser.add_argument('--benchmark', dest='benchmark', type=str, default='cnn')
     parser.add_argument('--seed', dest='seed', type=int, default=100)
     parser.add_argument('--epochs', dest='epochs', type=int, default=100)
     parser.add_argument('--batch_size', dest='batch_size', type=int, default=64)
@@ -187,7 +219,7 @@ if __name__ == "__main__":
     parser.add_argument('--learning_rate', dest='learning_rate', type=float, default=0.025)
     parser.add_argument('--save_dir', dest='save_dir', type=str, default=None)
     parser.add_argument('--data_dir', dest='data_dir', type=str, default=None)
-    parser.add_argument('--eval_only', dest='eval_only', type=int, default=0)
+    parser.add_argument('--eval_only', dest='eval_only', action='store_true')
     # PTB only argument. config=search uses proxy network for shared weights while
     # config=eval uses proxyless network for shared weights.
     parser.add_argument('--config', dest='config', type=str, default="search")
@@ -196,6 +228,7 @@ if __name__ == "__main__":
     parser.add_argument('--init_channels', dest='init_channels', type=int, default=16)
     parser.add_argument('--layers', dest='layers', type=int, default=8)
     parser.add_argument('--save_to_remote', dest='save_to_remote', action='store_true')
+    #parser.add_argument('--darts_dir', dest='dart_dir', type=str, default='/opt/dart_fork')
     args = parser.parse_args()
 
     main(args)

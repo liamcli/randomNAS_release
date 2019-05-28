@@ -55,6 +55,7 @@ class DartsWrapper:
         if save_to_remote:
             self.s3_bucket = 'randomnas'
             s3_folder = 'cnn/trial%d' % seed
+            self.s3_folder = s3_folder
             self.local_ckpt = os.path.join(save_path, 'model.ckpt')
             self.local_log = os.path.join(save_path, 'log.txt')
             self.s3_ckpt = os.path.join(s3_folder, 'model.ckpt')
