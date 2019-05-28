@@ -8,7 +8,7 @@ RUN apt-get update
 RUN apt-get install -y make cmake build-essential autoconf libtool rsync ca-certificates git grep sed dpkg curl wget bzip2 unzip llvm libssl-dev libreadline-dev libncurses5-dev libncursesw5-dev libbz2-dev libsqlite3-dev zlib1g-dev mpich htop vim 
 
 RUN git clone https://github.com/pyenv/pyenv.git $PYENV_ROOT && \
-    pyenv install 3.6.6 && pyenv global 3.6.6 && pyenv rehash
+    pyenv install 3.5.5 && pyenv global 3.5.5 && pyenv rehash
 
 
 

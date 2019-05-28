@@ -1,5 +1,4 @@
 import sys
-sys.path.append('/home/lisha/school/Projects/darts_fork')
 import os
 import shutil
 import logging
@@ -130,8 +129,7 @@ class Random_NAS:
 
 def main(args):
     # Fill in with root output path
-    #root_dir = '/home/liamli4465/results'
-    root_dir = '/media/lisha/fastfiles/results/desktop'
+    root_dir = '/tmp'
     if args.save_dir is None:
         save_dir = os.path.join(root_dir, '%s/random/trial%d' % (args.benchmark, args.seed))
     else:

@@ -1,5 +1,5 @@
 import sys
-sys.path.append('/home/lisha/school/Projects/darts_fork/cnn')
+# Need to make sure darts cnn library is in path.
 import genotypes
 from model_search import Network
 import utils
@@ -18,6 +18,8 @@ import torchvision.datasets as dset
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
+from scripts.aws_utils import *
+
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
@@ -25,7 +27,7 @@ class AttrDict(dict):
         self.__dict__ = self
 
 class DartsWrapper:
-    def __init__(self, save_path, data_dir, seed, batch_size, grad_clip, epochs, init_channels=16, layers=8, learning_rate=0.025):
+    def __init__(self, save_path, data_dir, seed, batch_size, grad_clip, epochs, init_channels=16, layers=8, learning_rate=0.025, save_to_remote=False):
         args = {}
         args['data'] = data_dir
         args['epochs'] = epochs
@@ -49,6 +51,15 @@ class DartsWrapper:
         args = AttrDict(args)
         self.args = args
         self.seed = seed
+        self.save_to_remote = save_to_remote
+        if save_to_remote:
+            self.s3_bucket = 's3://randomnas'
+            s3_folder = 'cnn/trial%d' % seed
+            self.local_ckpt = os.path.join(save_path, 'model.ckpt')
+            self.local_log = os.path.join(save_path, 'log.txt')
+            self.s3_ckpt = os.path.join(s3_folder, 'model.ckpt')
+            self.s3_log = os.path.join(s3_folder, 'log.txt')
+
 
         np.random.seed(args.seed)
         random.seed(args.seed)
@@ -250,10 +261,19 @@ class DartsWrapper:
                 'model': self.model,
                 'criterion': self.criterion
                 }
-        path = os.path.join(self.args.save, 'model.ckpt')
-        torch.save(checkpoint, path)
+        ckpt = os.path.join(self.args.save, 'model.ckpt')
+        torch.save(checkpoint, ckpt)
+
+        if self.save_to_remote:
+            upload_to_s3(self.local_ckpt, self.s3_bucket, self.s3_ckpt)
+            upload_to_s3(self.local_log, self.s3_bucket, self.s3_log)
+
 
     def load(self):
+        # Try to download log and ckpt from s3 first to see if a ckpt exists.
+        if self.save_to_remote:
+            download_from_s3(self.s3_ckpt, self.s3_bucket, self.local_ckpt)
+            download_from_s3(self.s3_log, self.s3_bucket, self.local_log)
         args = self.args
         path = os.path.join(args.save, 'model.ckpt')
         checkpoint = torch.load(path)
