@@ -198,9 +198,14 @@ def main(args):
     if args.benchmark=='cnn':
         best_arch = parse_arch_to_darts(best_arch)
 
-    #with open(os.path.join(args.dart_dir, args.benchmark, 'genotypes.py'), 'a') as f:
-    #    f.write('\n')
-    #    f.write('RANDOM{} = {}'.format(args.seed, best_arch))
+    if args.save_to_remote:
+        filename = '{}.genotypes.txt'.format(args.benchmark)
+        download_from_s3(filename, 'randomnas', filename)
+
+        with open(filename, 'a') as f:
+            f.write('\n')
+            f.write('RANDOM{} = {}'.format(args.seed, best_arch))
+        upload_to_s3(filename, 'randomnas', filename)
 
     logging.info(archs)
     arch = ' '.join([str(a) for a in archs[0][0]])
