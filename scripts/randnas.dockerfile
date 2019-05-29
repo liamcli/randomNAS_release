@@ -18,4 +18,7 @@ RUN pip install boto3
 RUN git clone https://github.com/liamcli/randomNAS_release.git /opt/randomNAS
 RUN git clone https://github.com/liamcli/darts.git /opt/darts_fork
 
-COPY run_experiment.sh /
+COPY run_stage1.sh /
+COPY run_stage2.sh /
+
+RUN mkdir /results

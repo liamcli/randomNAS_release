@@ -184,7 +184,7 @@ def main(args):
         from benchmarks.cnn.darts.darts_wrapper_discrete import DartsWrapper
         model = DartsWrapper(save_dir, args.data_dir, args.seed, args.batch_size, args.grad_clip, args.epochs, learning_rate=args.learning_rate, init_channels=args.init_channels, layers=args.layers, save_to_remote=args.save_to_remote)
 
-    searcher = Random_NAS(B, model, args.seed, save_dir)
+    searcher = Random_NAS(B, model, args.seed, save_dir, args.save_to_remote)
     logging.info('budget: %d' % (searcher.B))
     if not args.eval_only:
         searcher.run()
@@ -199,10 +199,10 @@ def main(args):
         best_arch = parse_arch_to_darts(best_arch)
 
     if args.save_to_remote:
-        filename = '{}.genotypes.txt'.format(args.benchmark)
+        filename = '{}_genotypes.txt'.format(args.benchmark)
         download_from_s3(filename, 'randomnas', filename)
 
-        with open(filename, 'a') as f:
+        with open(filename, 'a+') as f:
             f.write('\n')
             f.write('RANDOM{} = {}'.format(args.seed, best_arch))
         upload_to_s3(filename, 'randomnas', filename)

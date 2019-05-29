@@ -2,7 +2,7 @@
 DATA_DIR=/data
 RESULTS_DIR=/results
 
-./data/aws_creds.sh
+source ./data/aws_creds.sh
 
 cd /opt/darts_fork/cnn
 git pull
