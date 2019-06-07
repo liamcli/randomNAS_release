@@ -230,7 +230,8 @@ class DartsWrapper:
               except:
                   self.train_iter = iter(self.train_queue)
                   input, target = next(self.train_iter)
-              input = Variable(input, requires_grad=False).cuda()
+              input = Variable(input, requires_grad=False, volatile=True).cuda()
+              target = Variable(target, requires_grad=False, volatile=True).cuda()
               logits = self.model(input, discrete=True)
           for module in self.model.children():
               if isinstance(module, nn.BatchNorm2d):
