@@ -209,17 +209,35 @@ class DartsWrapper:
         self.model.train()
         self.save()
 
-    def evaluate(self, arch, split=None):
+    def evaluate(self, arch, split=None, reset_bn=False):
       # Return error since we want to minimize obj val
       logging.info(arch)
       objs = utils.AvgrageMeter()
       top1 = utils.AvgrageMeter()
       top5 = utils.AvgrageMeter()
 
-      self.model.eval()
-
       weights = self.get_weights_from_arch(arch)
       self.set_model_weights(weights)
+
+      if reset_bn:
+          self.model.train()
+          for module in self.model.children():
+              if isinstance(module, nn.BatchNorm2d):
+                  module.reset_running_stats()
+          for _ in range(100):
+              try:
+                  input, target = next(self.train_iter)
+              except:
+                  self.train_iter = iter(self.train_queue)
+                  input, target = next(self.train_iter)
+              input = Variable(input, requires_grad=False).cuda()
+              logits = self.model(input, discrete=True)
+          for module in self.model.children():
+              if isinstance(module, nn.BatchNorm2d):
+                  print(module.running_mean)
+                  break
+
+      self.model.eval()
 
       if split is None:
         n_batches = 10

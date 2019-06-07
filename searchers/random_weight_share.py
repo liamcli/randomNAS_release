@@ -149,6 +149,23 @@ class Random_NAS:
                 best_rounds.append(sample_vals[0])
         return best_rounds
 
+    def get_eval_arch_reset_bn(self, rounds=None):
+        vals = []
+        for _ in range(1000):
+            arch = self.model.sample_arch()
+            try:
+                if 'split' in inspect.getargspec(self.model.evaluate).args:
+                    ppl = self.model.evaluate(arch, split='valid', reset_bn=True)
+                else:
+                    ppl = self.model.evaluate(arch, reset_bn=True)
+            except Exception as e:
+                ppl = 1000000
+            logging.info(arch)
+            logging.info('objective_val: %.3f' % ppl)
+            vals.append((arch, ppl))
+        vals = sorted(vals, key=lambda x:x[1])
+        return vals[0:10]
+
 def main(args):
     # Fill in with root output path
     root_dir = '/tmp'
