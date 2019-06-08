@@ -10,6 +10,7 @@ import copy
 import random
 import logging
 import os
+from collections import deque
 import gc
 import numpy as np
 import torch
@@ -221,9 +222,15 @@ class DartsWrapper:
 
       if reset_bn:
           self.model.train()
-          for module in self.model.children():
-              if isinstance(module, nn.BatchNorm2d):
-                  module.reset_running_stats()
+          modules = deque()
+          modules.append(self.model)
+          while len(modules):
+              m = modules.pop()
+              if isinstance(m, nn.BatchNorm2d):
+                  m.reset_parameters()
+              for c in m.children():
+                  modules.append(c)
+
           for _ in range(100):
               try:
                   input, target = next(self.train_iter)

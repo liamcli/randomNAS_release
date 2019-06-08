@@ -223,6 +223,8 @@ def main(args):
             f.write('\n')
             f.write('RANDOM{} = {}'.format(args.seed, best_arch))
         upload_to_s3(filename, 'randomnas', filename)
+        logfile = os.path.join(args.save, 'log.txt')
+        upload_to_s3(logfile, 'randomnas', logfile)
 
     logging.info(archs)
     arch = ' '.join([str(a) for a in archs[0][0]])
